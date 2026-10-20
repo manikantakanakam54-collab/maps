@@ -7,8 +7,8 @@ on:
     branches: ["main", "master"]
 
 jobs:
-  analyze:
-    name: Analyze & Pub Get
+  build:
+    name: Test & Build Web
     runs-on: ubuntu-latest
 
     steps:
@@ -19,9 +19,16 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 'stable'
+          channel: 'stable'
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Run widget & unit tests
+        run: flutter test
+
+      - name: Build Web release
+        run: flutter build web --release
