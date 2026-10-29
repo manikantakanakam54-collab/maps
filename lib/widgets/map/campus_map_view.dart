@@ -17,6 +17,7 @@ class CampusMapView extends StatelessWidget {
   final List<LatLng> routePoints;
   final ValueChanged<Place> onSelectPlace;
   final VoidCallback onManualPan;
+  final bool isNavigating;
 
   const CampusMapView({
     super.key,
@@ -29,6 +30,7 @@ class CampusMapView extends StatelessWidget {
     required this.routePoints,
     required this.onSelectPlace,
     required this.onManualPan,
+    this.isNavigating = false,
   });
 
   String get _tileUrlTemplate {
@@ -100,14 +102,16 @@ class CampusMapView extends StatelessWidget {
               // Outer border / glow line
               Polyline(
                 points: routePoints,
-                strokeWidth: 8.0,
-                color: const Color(0xFF047857).withValues(alpha: 0.5),
+                strokeWidth: isNavigating ? 9.0 : 8.0,
+                color: isNavigating
+                    ? const Color(0xFF0F9D58).withValues(alpha: 0.35)
+                    : const Color(0xFF047857).withValues(alpha: 0.5),
               ),
               // Inner solid route line
               Polyline(
                 points: routePoints,
-                strokeWidth: 5.0,
-                color: AppColors.routeGreen,
+                strokeWidth: isNavigating ? 5.5 : 5.0,
+                color: isNavigating ? const Color(0xFF0F9D58) : AppColors.routeGreen,
               ),
             ],
           ),
@@ -117,6 +121,64 @@ class CampusMapView extends StatelessWidget {
           markers: places.map((place) {
             final isSelected = selectedPlace?.name == place.name;
             final catColor = AppColors.getCategoryColor(place.category);
+
+            // In active navigation mode, make destination marker stand out like Google Maps
+            if (isNavigating && isSelected) {
+              return Marker(
+                point: place.point,
+                width: 120,
+                height: 70,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.flag_rounded,
+                        size: 22,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        place.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
 
             return Marker(
               point: place.point,
@@ -182,7 +244,7 @@ class CampusMapView extends StatelessWidget {
           }).toList(),
         ),
 
-        // User GPS Position & Heading Marker
+        // User GPS Position & Heading Marker (Google Maps Puck)
         if (userPosition != null)
           MarkerLayer(
             markers: [
@@ -195,34 +257,37 @@ class CampusMapView extends StatelessWidget {
                   children: [
                     // Outer pulse ring
                     Container(
-                      width: 50,
-                      height: 50,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.blueAccent.withValues(alpha: 0.25),
+                        color: isNavigating
+                            ? const Color(0xFF1A73E8).withValues(alpha: 0.22)
+                            : Colors.blueAccent.withValues(alpha: 0.25),
                       ),
                     ),
-                    // Heading arrow / dot
+                    // Directional navigation puck
                     Transform.rotate(
                       angle: ((userHeading ?? 0) * (math.pi / 180)),
                       child: Container(
-                        width: 32,
-                        height: 32,
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
-                          color: Colors.blueAccent,
+                          color: const Color(0xFF1A73E8), // Google Maps Blue
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 6,
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
                         child: const Icon(
                           Icons.navigation_rounded,
                           color: Colors.white,
-                          size: 18,
+                          size: 19,
                         ),
                       ),
                     ),

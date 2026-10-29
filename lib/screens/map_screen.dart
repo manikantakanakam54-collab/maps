@@ -283,14 +283,15 @@ class _MapScreenState extends State<MapScreen> {
         _isFollowingLocation = (_selectedOriginPlace == null);
         if (autoStartNav) {
           _isNavigating = true;
+          _isFollowingLocation = true;
         }
       });
 
-      _fitRouteBounds();
-
       if (autoStartNav) {
+        _mapController.move(start, 18.5);
         _ttsService.speak('Starting walking navigation to ${place.name}.');
       } else {
+        _fitRouteBounds();
         _ttsService.speak('Shortest path found to ${place.name}.');
       }
     } else {
@@ -877,6 +878,7 @@ class _MapScreenState extends State<MapScreen> {
               userPosition: _currentPosition,
               userHeading: _heading,
               routePoints: _routePoints,
+              isNavigating: _isNavigating,
               onSelectPlace: _selectPlace,
               onManualPan: () {
                 if (_isFollowingLocation) {
@@ -885,19 +887,20 @@ class _MapScreenState extends State<MapScreen> {
               },
             ),
 
-            // Top Turn-by-Turn Navigation HUD (Active when navigating)
+            // Google Maps Navigation HUD (Active when navigating)
             if (_isNavigating && _selectedPlace != null)
-              Positioned(
-                top: 8,
-                left: 0,
-                right: 0,
+              Positioned.fill(
                 child: TurnByTurnHud(
                   currentStep: currentNavStep,
+                  nextStep: (_navigationSteps.length > _currentStepIndex + 1)
+                      ? _navigationSteps[_currentStepIndex + 1]
+                      : null,
                   destination: _selectedPlace!,
                   distanceRemaining: _routeDistance,
                   durationRemaining: _routeDuration,
                   isOffRoute: _isOffRoute,
                   isVoiceMuted: _ttsService.isMuted,
+                  isFollowingLocation: _isFollowingLocation,
                   onToggleVoice: () {
                     setState(() => _ttsService.toggleMute());
                     widget.prefs.setVoiceEnabled(!_ttsService.isMuted);
@@ -905,13 +908,12 @@ class _MapScreenState extends State<MapScreen> {
                   onStopNavigation: _stopNavigation,
                   onOpenGoogleMaps: () => _openInGoogleMaps(_selectedPlace!),
                   onRecenter: () {
-                    if (_currentPosition != null) {
-                      _mapController.move(
-                        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                        18.0,
-                      );
-                      setState(() => _isFollowingLocation = true);
-                    }
+                    final pt = _selectedOriginPlace?.point ??
+                        (_currentPosition != null
+                            ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                            : (_routePoints.isNotEmpty ? _routePoints.first : AppConstants.campusCenter));
+                    _mapController.move(pt, 18.5);
+                    setState(() => _isFollowingLocation = true);
                   },
                 ),
               ),
@@ -972,20 +974,21 @@ class _MapScreenState extends State<MapScreen> {
               ),
 
             // Floating Map Controls (Compass, Style, Location, SOS)
-            Positioned(
-              right: 16,
-              bottom: _selectedPlace != null ? 220 : 160,
-              child: MapControls(
-                heading: _heading,
-                isLocating: _isLocating,
-                isFollowingLocation: _isFollowingLocation,
-                currentMapStyle: _mapStyle,
-                onRecenterNorth: _resetNorth,
-                onGoToUserLocation: _goToUserLocation,
-                onSelectMapStyle: _onSelectMapStyle,
-                onOpenEmergency: _openEmergencySheet,
+            if (!_isNavigating)
+              Positioned(
+                right: 16,
+                bottom: _selectedPlace != null ? 240 : 160,
+                child: MapControls(
+                  heading: _heading,
+                  isLocating: _isLocating,
+                  isFollowingLocation: _isFollowingLocation,
+                  currentMapStyle: _mapStyle,
+                  onRecenterNorth: _resetNorth,
+                  onGoToUserLocation: _goToUserLocation,
+                  onSelectMapStyle: _onSelectMapStyle,
+                  onOpenEmergency: _openEmergencySheet,
+                ),
               ),
-            ),
 
             // Place Details Sheet (if a place is clicked)
             if (_selectedPlace != null && !_isNavigating)
@@ -1007,7 +1010,15 @@ class _MapScreenState extends State<MapScreen> {
                     if (_routePoints.isEmpty) {
                       _buildAndStartRoute(_selectedPlace!, autoStartNav: true);
                     } else {
-                      setState(() => _isNavigating = true);
+                      setState(() {
+                        _isNavigating = true;
+                        _isFollowingLocation = true;
+                      });
+                      final startPt = _selectedOriginPlace?.point ??
+                          (_currentPosition != null
+                              ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                              : (_routePoints.isNotEmpty ? _routePoints.first : AppConstants.campusCenter));
+                      _mapController.move(startPt, 18.5);
                       _ttsService.speak('Starting walking navigation to ${_selectedPlace!.name}.');
                     }
                   },

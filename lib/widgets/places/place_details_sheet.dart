@@ -288,26 +288,32 @@ class PlaceDetailsSheet extends StatelessWidget {
                 // Action Buttons Row
                 Row(
                   children: [
-                    // Start In-App Navigation Button
+                    // Start Navigation Button (Google Maps Style)
                     Expanded(
+                      flex: 3,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: const Color(0xFF0F9D58), // Google Maps Green
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 3,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         onPressed: onStartNavigation,
-                        icon: Icon(
-                          isNavigating
-                              ? Icons.navigation_rounded
-                              : Icons.directions_walk_rounded,
+                        icon: const Icon(
+                          Icons.navigation_rounded,
+                          size: 20,
+                          color: Colors.white,
                         ),
-                        label: Text(
-                          isNavigating ? 'In Navigation' : 'In-App Walk',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        label: const Text(
+                          'Start',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     ),
