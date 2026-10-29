@@ -68,6 +68,8 @@ class _MapScreenState extends State<MapScreen> {
   late List<Place> _places;
   String _selectedCategory = 'All';
   Place? _selectedPlace;
+  Place? _selectedOriginPlace;
+  String _originDisplayName = 'My Location';
   Position? _currentPosition;
   double? _heading;
   User? _currentUser;
@@ -206,32 +208,67 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // Navigation Logic
-  Future<void> _buildAndStartRoute(Place place, {bool autoStartNav = false}) async {
+  Future<void> _buildAndStartRoute(
+    Place place, {
+    bool autoStartNav = false,
+    Place? customOrigin,
+  }) async {
     _searchFocusNode.unfocus();
     setState(() {
       _selectedPlace = place;
       _searchSuggestions = [];
       _isRouteLoading = true;
+      if (customOrigin != null) {
+        _selectedOriginPlace = customOrigin;
+      }
     });
 
-    // Make sure we have a position
-    Position? startPos = _currentPosition;
-    if (startPos == null) {
-      startPos = await _locationService.getCurrentPosition();
-      if (startPos != null && mounted) {
-        setState(() => _currentPosition = startPos);
+    LatLng start;
+    String startName;
+
+    if (_selectedOriginPlace != null) {
+      start = _selectedOriginPlace!.point;
+      startName = _selectedOriginPlace!.name;
+    } else {
+      // Determine user position or campus entry
+      Position? startPos = _currentPosition;
+      if (startPos == null) {
+        startPos = await _locationService.getCurrentPosition();
+        if (startPos != null && mounted) {
+          setState(() => _currentPosition = startPos);
+        }
+      }
+
+      if (startPos != null) {
+        final userCoord = LatLng(startPos.latitude, startPos.longitude);
+        const distCalc = Distance();
+        final distFromCenter = distCalc.as(LengthUnit.Meter, userCoord, AppConstants.campusCenter);
+
+        if (distFromCenter <= AppConstants.maxCampusRadiusMeters) {
+          // User is on campus!
+          start = userCoord;
+          startName = 'My Location';
+        } else {
+          // User is off-campus! Set start to Campus Main Gate to show the true campus walk
+          start = AppConstants.campusMainGate;
+          startName = 'Main Gate Entrance';
+          _showToast('Showing shortest walk from Campus Main Gate');
+        }
+      } else {
+        // Fallback to Main Gate if GPS not available
+        start = AppConstants.campusMainGate;
+        startName = 'Main Gate Entrance';
       }
     }
 
-    if (startPos == null) {
-      setState(() => _isRouteLoading = false);
-      _showToast('GPS signal required to calculate shortest walk.');
-      _mapController.move(place.point, 17.5);
-      return;
-    }
+    setState(() => _originDisplayName = startName);
 
-    final start = LatLng(startPos.latitude, startPos.longitude);
-    final routeResult = await _routingService.calculateWalkingRoute(start, place.point);
+    final routeResult = await _routingService.calculateWalkingRoute(
+      start,
+      place.point,
+      startName: startName,
+      destName: place.name,
+    );
 
     if (!mounted) return;
 
@@ -243,7 +280,7 @@ class _MapScreenState extends State<MapScreen> {
         _routeDuration = routeResult.duration;
         _currentStepIndex = 0;
         _isRouteLoading = false;
-        _isFollowingLocation = true;
+        _isFollowingLocation = (_selectedOriginPlace == null);
         if (autoStartNav) {
           _isNavigating = true;
         }
@@ -261,6 +298,143 @@ class _MapScreenState extends State<MapScreen> {
       _showToast('Could not calculate route. Showing place location.');
       _mapController.move(place.point, 17.5);
     }
+  }
+
+  void _showOriginSelectionSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (_, scrollController) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Choose Starting Point',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Calculating shortest walk to ${_selectedPlace?.name ?? "destination"}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.primary,
+                        child: Icon(Icons.my_location_rounded, color: Colors.white, size: 20),
+                      ),
+                      title: const Text('My Current GPS Location', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Route directly from where you are standing'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() => _selectedOriginPlace = null);
+                        if (_selectedPlace != null) {
+                          _buildAndStartRoute(_selectedPlace!);
+                        }
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.routeGreen,
+                        child: Icon(Icons.door_front_door_rounded, color: Colors.white, size: 20),
+                      ),
+                      title: const Text('Campus Main Gate (GT Road Entrance)', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Primary university entrance on Delhi-Jalandhar Highway'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        final mainGate = _places.firstWhere(
+                          (p) => p.name.contains('Main Gate'),
+                          orElse: () => const Place(
+                            id: 'main-gate',
+                            name: 'Main Gate Parking',
+                            lat: 31.259875,
+                            lng: 75.706047,
+                            category: 'Administration',
+                            imageUrl: '',
+                            description: 'Campus Main Gate on GT Road',
+                            timings: '24 Hours',
+                          ),
+                        );
+                        setState(() => _selectedOriginPlace = mainGate);
+                        if (_selectedPlace != null) {
+                          _buildAndStartRoute(_selectedPlace!, customOrigin: mainGate);
+                        }
+                      },
+                    ),
+                    const Divider(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Text(
+                        'Or pick any Campus Block / Place:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: _places.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final p = _places[index];
+                          if (p.name == _selectedPlace?.name) return const SizedBox.shrink();
+                          return ListTile(
+                            leading: Icon(
+                              Icons.location_on_rounded,
+                              color: AppColors.getCategoryColor(p.category),
+                            ),
+                            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text(p.category),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              setState(() => _selectedOriginPlace = p);
+                              if (_selectedPlace != null) {
+                                _buildAndStartRoute(_selectedPlace!, customOrigin: p);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _fitRouteBounds() {
@@ -333,6 +507,7 @@ class _MapScreenState extends State<MapScreen> {
       _routePoints = [];
       _navigationSteps = [];
       _currentStepIndex = 0;
+      _selectedOriginPlace = null;
     });
     _ttsService.stop();
   }
@@ -821,6 +996,8 @@ class _MapScreenState extends State<MapScreen> {
                 child: PlaceDetailsSheet(
                   place: _selectedPlace!,
                   userPosition: _currentPosition,
+                  originName: _originDisplayName,
+                  onSelectOrigin: _showOriginSelectionSheet,
                   isRouteLoading: _isRouteLoading,
                   routeDistance: _routeDistance,
                   routeDuration: _routeDuration,
@@ -846,6 +1023,7 @@ class _MapScreenState extends State<MapScreen> {
                   onClose: () {
                     setState(() {
                       _selectedPlace = null;
+                      _selectedOriginPlace = null;
                       _routePoints = [];
                       _navigationSteps = [];
                     });

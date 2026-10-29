@@ -7,6 +7,8 @@ class AppConstants {
 
   // LPU Campus Coordinates
   static const LatLng campusCenter = LatLng(31.2533614, 75.7035391);
+  static const LatLng campusMainGate = LatLng(31.259875, 75.706047);
+  static const double maxCampusRadiusMeters = 1600.0;
   static const double defaultZoom = 16.5;
   static const double minZoom = 14.0;
   static const double maxZoom = 19.5;

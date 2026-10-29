@@ -7,6 +7,7 @@ import '../../models/place.dart';
 class PlaceDetailsSheet extends StatelessWidget {
   final Place place;
   final Position? userPosition;
+  final String originName;
   final bool isRouteLoading;
   final double routeDistance;
   final double routeDuration;
@@ -17,11 +18,13 @@ class PlaceDetailsSheet extends StatelessWidget {
   final VoidCallback onToggleFavorite;
   final VoidCallback onShare;
   final VoidCallback onClose;
+  final VoidCallback? onSelectOrigin;
 
   const PlaceDetailsSheet({
     super.key,
     required this.place,
     required this.userPosition,
+    this.originName = 'My Location',
     required this.isRouteLoading,
     required this.routeDistance,
     required this.routeDuration,
@@ -32,6 +35,7 @@ class PlaceDetailsSheet extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onShare,
     required this.onClose,
+    this.onSelectOrigin,
   });
 
   String get _formattedDuration {
@@ -196,9 +200,62 @@ class PlaceDetailsSheet extends StatelessWidget {
                   ),
                 ],
 
+                // Origin Row (Allows user to see and switch starting point)
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.trip_origin_rounded, size: 14, color: AppColors.routeGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'From: $originName',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.grey.shade200 : Colors.grey.shade800,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (onSelectOrigin != null)
+                        InkWell(
+                          onTap: onSelectOrigin,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Change Start',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(Icons.swap_vert_rounded, size: 15, color: AppColors.primary),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
                 // Route details pill if route calculated
                 if (routeDistance > 0 && !isNavigating) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
