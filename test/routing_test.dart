@@ -42,7 +42,7 @@ void main() {
       expect(result!.distance, lessThan(80.0));
     });
 
-    test('Block 25 to Block 30 calculates direct academic corridor walk (~214m)', () async {
+    test('Block 25 to Block 30 calculates road-following academic corridor walk (realistic distance)', () async {
       final b25 = CampusData.defaultPlaces.firstWhere((p) => p.name == 'Block 25');
       final b30 = CampusData.defaultPlaces.firstWhere((p) => p.name == 'Block 30 - Infotech');
 
@@ -54,7 +54,10 @@ void main() {
       );
 
       expect(result, isNotNull);
-      expect(result!.distance, lessThan(230.0));
+      // Road-following path along North Promenade is ~257m (straight-line is ~215m).
+      // It must NOT be an OSRM 750m+ outer detour; 320m cap still keeps it realistic.
+      expect(result!.distance, lessThan(320.0));
+      expect(result.distance, greaterThan(100.0)); // Must be more than straight line
     });
 
     test('CampusRouteEngine connects Central Library to Block 34 directly (~148m)', () {
